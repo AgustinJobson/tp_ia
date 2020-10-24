@@ -8,23 +8,6 @@ from simpleai.search import (
 
 from simpleai.search.viewers import WebViewer, BaseViewer
 
-itinerario = planear_camiones(
-  # método de búsqueda a utilizar. Puede ser: astar, breadth_first, depth_first, uniform_cost o greedy
-  metodo="astar",
-  camiones=[
-    # id, ciudad de origen, y capacidad de combustible máxima (litros)
-    ('c1', 'rafaela', 1.5),
-    ('c2', 'rafaela', 2),
-    ('c3', 'santa_fe', 2),
-  ],
-  paquetes=[
-    # id, ciudad de origen, y ciudad de destino
-    ('p1', 'rafaela', 'angelica'),
-    ('p2', 'rafaela', 'santa_fe'),
-    ('p3', 'esperanza', 'susana'),
-    ('p4', 'recreo', 'san_vicente'),
-  ],
-)
 
 CONEXIONES = {
     'sunchales': [('lehmann', 32)],
@@ -40,16 +23,6 @@ CONEXIONES = {
     'san_vicente': [('angelica',18)]
 }
 
-def planear_camiones(metodo, camiones, paquetes):
-    lista = []
-    for camion in camiones:
-        lista.append((camion[1], camion[2]),())
-    
-    lista2 = []
-    for index, paquete in enumerate(paquetes):
-        lista2.append(index)
-
-    INITIAL_STATE = (tuple(lista), tuple(lista2))
 
 
 class mercadoArtificialProblem(SearchProblem):
@@ -59,7 +32,7 @@ class mercadoArtificialProblem(SearchProblem):
         lista = []
         for cam in camiones_estado:
             lista.append(cam[0])
-        return (set(lista) == ('rafaela','santa_fe') or set(lista) == ('santa_fe','rafaela'))) and (len(paquetes) == 0)
+        return (set(lista) == ('rafaela','santa_fe') or set(lista) == ('santa_fe','rafaela')) and (len(paquetes_estado) == 0)
 
     def actions(self, state):
         acciones_disponibles = []
@@ -73,7 +46,7 @@ class mercadoArtificialProblem(SearchProblem):
     
 
     #((('Sunchales',1.5,()), ('Sunchales',2,()), ('Rafaela',2,())), ('p1','p2','p3', 'p4')
-    def result(self, state, action, camiones, paquetes):
+    def result(self, state, action):
         camiones_estado, paquetes_estado = state
         camiones_estado = list(camiones_estado)
         paquetes_estado = list(paquetes_estado)
@@ -97,34 +70,96 @@ class mercadoArtificialProblem(SearchProblem):
                     for paq_2 in paquetes:
                         if paq == paq_2[0] and cam[0] == paq_2[1]:
                             paquetes_estado.remove(paq)
-                            cam[2] = list(cam[2])
-                            cam[2].append(paq)
-                            cam[2] = tuple(cam[2])
+                            lista = list(cam[2])
+                            lista.append(paq)
+                            #cam[2] = list(cam[2])
+                            #cam[2].append(paq)
+                            cam[2] = tuple(lista)
             
                 #ACÁ DEJAMOS UN PAQUETE CUANDO SE ENCUENTRA EN LA CIUDAD DEL PAQUETE (SI TIENE)
-                cam[2] = list(cam[2])
+                #cam[2] = list(cam[2])
                 if len(cam[2]) != 0:
                     for paq in cam[2]:
                         for paq_2 in paquetes:
                             if paq == paq_2[0] and cam[0] == paq_2[2]:
-                                cam[2].remove(paq)
-                cam[2] = tuple(cam[2])
+                                lista = list(cam[2])
+                                lista.remove(paq)
+                                cam[2] = tuple(lista)
+                                
+                #cam[2] = tuple(cam[2])
         
-        state = tuple(tuple(camiones_estado), tuple(paquetes_estado))
+        state = tuple((tuple(camiones_estado), tuple(paquetes_estado)))
         return state
 
     def cost(self, state_ini, action, state_fin):
         indice_camion_accion, ciudad_a_ir = action
-        camiones_estado, paquetes_estado = state
+        camiones_estado, paquetes_estado = state_ini
         for index_camion_estado, cam in enumerate(camiones_estado):
             if index_camion_estado == indice_camion_accion:
                 for ciudad in CONEXIONES[cam[0]]:
                     if ciudad[0] == ciudad_a_ir:
                         return ciudad[1] / 100
 
-if __name__ == '__main__':
+
+def planear_camiones(metodo, camiones, paquetes):
+    lista = []
+    for camion in camiones:
+        lista.append((camion[1], camion[2],()))
+    
+    lista2 = []
+    for paquete in paquetes:
+        lista2.append(paquete[0])
+        
+    
+    INITIAL_STATE = (tuple(lista), tuple(lista2))
     problema = mercadoArtificialProblem(INITIAL_STATE)
+    
+    resultado = metodo(problema)
+    itinerario = []
+    for action,state in resultado.path():
+        #aca sacamos ('c1',..)
+        index_camion = action[0] 
+        camion = camiones[index_camion][0]
+        
+        #ahora sacamos la ciudad a la que va
+        camiones_estado, paquetes_estado = state
+        ciudad = camiones_estado[index_camion][0]
+        
+        #sacamos la nafta que le cuesta llegar de un lugar a otro
+        for ciudad_conexion in CONEXIONES[ciudad]:
+            if ciudad_conexion[0] == action[1]:
+                nafta = ciudad_conexion[1] / 100
+                break
+            
+        #faltan los paquetes de ese camion, que lo tenemos en el camiones_estado[index_camion][2] . e.g ('Sunchales',2,('p1','p2')),
+        paquetes_del_camion = camiones_estado[index_camion][2]
+        
+        #agregamos todo al itinerario
+        itinerario.append(camion,ciudad,nafta,tuple(paquetes_del_camion))
+        
+    return tuple(itinerario)
+
+if __name__ == '__main__':
+    
     #resultado = hill_climbing_random_restarts(problema, 1000)
 
     #print(resultado.state)
+    
+    camiones=[
+        # id, ciudad de origen, y capacidad de combustible máxima (litros)
+        ('c1', 'rafaela', 1.5),
+        ('c2', 'rafaela', 2),
+        ('c3', 'santa_fe', 2),
+    ]
+    paquetes=[
+        # id, ciudad de origen, y ciudad de destino
+        ('p1', 'rafaela', 'angelica'),
+        ('p2', 'rafaela', 'santa_fe'),
+        ('p3', 'esperanza', 'susana'),
+        ('p4', 'recreo', 'san_vicente'),
+        ]
     #print('Cuantas dan 15?:', problema.value(resultado.state))
+    itinerario = planear_camiones(
+    # método de búsqueda a utilizar. Puede ser: astar, breadth_first, depth_first, uniform_cost o greedy
+    astar,camiones,paquetes)
+    print(itinerario)
