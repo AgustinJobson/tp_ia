@@ -8,8 +8,6 @@ from simpleai.search import (
 )
 
 from simpleai.search.viewers import WebViewer, BaseViewer
-CAMIONES = []
-PAQUETES = []
 
 CARGAS = ['rafaela','santa_fe']
 CONEXIONES = {
@@ -23,11 +21,11 @@ CONEXIONES = {
     'santa_fe': [('santo_tome', 5),('recreo',10)],
     'santo_tome': [('angelica', 85),('sauce_viejo', 15),('santa_fe',5)],
     'sauce_viejo': [('santo_tome',15)],
-    'san_vicente': [('angelica',18)]
+    'san_vicente': [('angelica',18)],
+    'sc_de_saguier': [('angelica',60)]
 }
 
 class mercadoArtificialProblem(SearchProblem):
-
     def is_goal(self, state):
         camiones_estado, paquetes_estado = state
         lista = []
@@ -35,6 +33,8 @@ class mercadoArtificialProblem(SearchProblem):
             return False
         
         for cam in camiones_estado:
+            if (len(cam[2]) > 0):
+                return False
             lista.append(cam[0])     
             
         for camion in lista:
@@ -46,84 +46,69 @@ class mercadoArtificialProblem(SearchProblem):
     def actions(self, state):
         acciones_disponibles = []
         camiones_estado, paquetes_estado = state
-        for index_camion, camion in enumerate(camiones_estado):
-            
+        for index_camion, camion in enumerate(camiones_estado):            
             #ACCIONES DE MOVER EL CAMION
             for ciudad_a_ir in CONEXIONES[camion[0]]:
-                nafta_necesaria = ciudad_a_ir[1] / 100
+                nafta_necesaria = round((ciudad_a_ir[1] / 100),2)
                 if (camion[1] >= nafta_necesaria):
-                    acciones_disponibles.append((index_camion,ciudad_a_ir[0],'MOVER'))
-                    
-            #ACCIONES DE JUNTAR PAQUETES
-            for index, paquete in enumerate(paquetes_estado):
-                for paquete_lista in PAQUETES:
-                    if paquete == paquete_lista[0] and camion[0] == paquete_lista[1]:
-                        acciones_disponibles.append((index_camion,index,'JUNTAR'))
-        
+                    acciones_disponibles.append((index_camion,ciudad_a_ir[0]))
+                            
         return acciones_disponibles
     
 
     #estado: ((('Sunchales',1.5,()), ('Sunchales',2,()), ('Rafaela',2,())), ('p1','p2','p3', 'p4')
-    #accion: (0,'Rafaela')
+    #accion: (0,'Rafaela','MOVER')
     def result(self, state, action):
         camiones_estado, paquetes_estado = state
         camiones_estado = list(camiones_estado)
         paquetes_estado = list(paquetes_estado)
         
         cam = camiones_estado[action[0]]
-        
-
-        #for index_camion, cam in enumerate(camiones_estado):
         cam = list(cam)
         ciudad_del_camion = cam[0]
         nafta_restante_camion = cam[1]
         paquetes_del_camion = list(cam[2]) 
-        #cam[2] = list(cam[2])
+      
+        #ACÁ JUNTAMOS PAQUETES SI ES NECESARIO JUNTAR
+        for index, paquete in enumerate(paquetes_estado):
+            for paquete_lista in PAQUETES:
+                if paquete == paquete_lista[0] and ciudad_del_camion == paquete_lista[1]:                    
+                    paquetes_estado.remove(paquete)
+                    paquetes_del_camion.append(paquete) 
         
-        
-        if action[2] == 'MOVER':
-            #PRIMERO NOS MOVEMOS A LA CIUDAD DE LA ACCIÓN Y RESTAMOS EL COMBUSTIBLE
-            for ciudad in CONEXIONES[cam[0]]:
-                if ciudad[0] == action[1]:
-                    nafta_necesaria = ciudad[1] / 100
-            nafta_restante_camion -= nafta_necesaria
-            ciudad_del_camion = action[1]              
+        #ACÁ DEJAMOS UN PAQUETE CUANDO SE ENCUENTRA EN LA CIUDAD DEL PAQUETE (SI TIENE)
+        if len(paquetes_del_camion) != 0:
+            for paq in paquetes_del_camion:
+                for paq_2 in PAQUETES:
+                    if paq == paq_2[0] and ciudad_del_camion == paq_2[2]:
+                        paquetes_del_camion.remove(paq)
 
-            #ACA CARGAMOS COMBUSTIBLE SI SE ENCUENTRA EN RAFAELA O SANTA FE
-            if action[1] == 'rafaela' or action[1] == 'santa_fe':
-                nafta_restante_camion = CAMIONES[action[0]][2]
-                
-            #camiones_estado[index_camion][1] = camiones[index_camion][2]
-            
-            #ACÁ DEJAMOS UN PAQUETE CUANDO SE ENCUENTRA EN LA CIUDAD DEL PAQUETE (SI TIENE)
-            if len(paquetes_del_camion) != 0:
-                for paq in paquetes_del_camion:
-                    for paq_2 in PAQUETES:
-                        if paq == paq_2[0] and ciudad_del_camion == paq_2[2]:
-                            paquetes_del_camion.remove(paq)
+        #PRIMERO NOS MOVEMOS A LA CIUDAD DE LA ACCIÓN Y RESTAMOS EL COMBUSTIBLE
+        ciudad_del_camion = action[1]  
+        for ciudad in CONEXIONES[cam[0]]:
+            if ciudad[0] == ciudad_del_camion:
+                nafta_necesaria = round((ciudad[1] / 100),2)
+        
+        #ACA CARGAMOS COMBUSTIBLE SI SE ENCUENTRA EN RAFAELA O SANTA FE
+        if ciudad_del_camion == 'rafaela' or ciudad_del_camion == 'santa_fe':
+            nafta_restante_camion = CAMIONES[action[0]][2]
         else:
-            #ACÁ JUNTAMOS PAQUETES SI ES NECESARIO JUNTAR
-            paq = paquetes_estado[action[1]]
-            paquetes_estado.remove(paq)
-            paquetes_del_camion.append(paq) 
+            nafta_restante_camion = round((nafta_restante_camion - nafta_necesaria),2)   
+
 
         cam = tuple((ciudad_del_camion, nafta_restante_camion, tuple(paquetes_del_camion)))
         camiones_estado[action[0]] = cam
         state = tuple((tuple(camiones_estado), tuple(paquetes_estado)))
+
         return state
 
     def cost(self, state_ini, action, state_fin):
-        indice_camion_accion, ciudad_a_ir, accion = action
+        indice_camion_accion, ciudad_a_ir = action
         camiones_estado, paquetes_estado = state_ini
-        cam = camiones_estado[action[0]] 
-        
-        if accion == 'MOVER':    
-            for ciudad in CONEXIONES[cam[0]]:
-                if ciudad[0] == ciudad_a_ir:
-                    return ciudad[1] / 100
-                
-        return 0
-
+        cam = camiones_estado[action[0]]        
+        for ciudad in CONEXIONES[cam[0]]:
+            if ciudad[0] == ciudad_a_ir:
+                return round((ciudad[1] / 100),2)
 
 def planear_camiones(metodo, camiones, paquetes):
     lista = []
@@ -133,13 +118,12 @@ def planear_camiones(metodo, camiones, paquetes):
     lista2 = []
     for paquete in paquetes:
         lista2.append(paquete[0])
-            
-    INITIAL_STATE = (tuple(lista), tuple(lista2))
-    problema = mercadoArtificialProblem(INITIAL_STATE)
-    
+
+    global CAMIONES 
     CAMIONES = camiones
+    global PAQUETES 
     PAQUETES = paquetes
-    
+
     METODOS = {
         'breadth_first': breadth_first,
         'depth_first': depth_first,
@@ -148,32 +132,37 @@ def planear_camiones(metodo, camiones, paquetes):
         'astar': astar,
     }
 
+    INITIAL_STATE = (tuple(lista), tuple(lista2))
+    problema = mercadoArtificialProblem(INITIAL_STATE) 
     result = METODOS[metodo](problema)
     
     itinerario = []
     nafta = []
-    for action,state in resultado.path():
+    for action,state in result.path():
         #aca sacamos ('c1',..)
-        index_camion = action[0] 
-        camion = camiones[index_camion][0]
-        
-        #ahora sacamos la ciudad a la que va
-        camiones_estado, paquetes_estado = state
-        ciudad = camiones_estado[index_camion][0]
-        
-        #sacamos la nafta que le cuesta llegar de un lugar a otro
-        for ciudad_conexion in CONEXIONES[ciudad]:
-            if ciudad_conexion[0] == action[1]:
-                nafta = ciudad_conexion[1] / 100
-                break
+        if action == None:
+            pass
+        else:            
+            index_camion = action[0] 
+            camion = camiones[index_camion][0]
             
-        #faltan los paquetes de ese camion, que lo tenemos en el camiones_estado[index_camion][2] . e.g ('Sunchales',2,('p1','p2')),
-        paquetes_del_camion = camiones_estado[index_camion][2]
-        
-        #agregamos todo al itinerario
-        itinerario.append(camion,ciudad,nafta,tuple(paquetes_del_camion))
-        
-    return tuple(itinerario)
+            #ahora sacamos la ciudad a la que va
+            camiones_estado, paquetes_estado = state
+            ciudad = camiones_estado[index_camion][0]
+            
+            #sacamos la nafta que le cuesta llegar de un lugar a otro
+            for ciudad_conexion in CONEXIONES[ciudad]:
+                if ciudad_conexion[0] == action[1]:
+                    nafta = round((ciudad_conexion[1] / 100),2)
+                    break
+                
+            #faltan los paquetes de ese camion, que lo tenemos en el camiones_estado[index_camion][2] . e.g ('Sunchales',2,('p1','p2')),
+            paquetes_del_camion = camiones_estado[index_camion][2]
+            
+            #agregamos todo al itinerario
+            itinerario.append((camion,ciudad,nafta,list(paquetes_del_camion)))
+
+    return itinerario
 
 if __name__ == '__main__':   
     camiones=[
@@ -193,7 +182,5 @@ if __name__ == '__main__':
 
     itinerario = planear_camiones(
         # método de búsqueda a utilizar. Puede ser: astar, breadth_first, depth_first, uniform_cost o greedy
-        breadth_first,camiones,paquetes
+        "breadth_first",camiones,paquetes
     )
-
-    print(itinerario)
