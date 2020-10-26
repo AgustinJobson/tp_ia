@@ -34,8 +34,14 @@ class mercadoArtificialProblem(SearchProblem):
         
         for cam in camiones_estado:
             if (len(cam[2]) > 0):
-                return False
-            lista.append(cam[0])     
+                paquetes_del_camion = cam[2]
+                for paq in paquetes_del_camion:
+                    for paq_2 in PAQUETES:
+                        if paq == paq_2[0] and paq_2[2] != cam[0]:
+                            return False
+                lista.append(cam[0])
+            else:
+                lista.append(cam[0])     
             
         for camion in lista:
             if camion not in CARGAS:
