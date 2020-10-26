@@ -9,7 +9,7 @@ from simpleai.search import (
 
 from simpleai.search.viewers import WebViewer, BaseViewer
 
-CARGAS = ['rafaela','santa_fe']
+CARGAS = ['rafaela','santa_fe'] 
 CONEXIONES = {
     'sunchales': [('lehmann', 32)],
     'lehmann': [('rafaela', 8),('sunchales',32)],
@@ -115,6 +115,28 @@ class mercadoArtificialProblem(SearchProblem):
 
     def cost(self, state_ini, action, state_fin):
         return action[2]
+    
+    def heuristic(self, state):
+        camiones_estado, paquetes_estado = state
+        lista = []
+        #Por cada paquete del estado, obtenemos el minimo recorrido que debe hacer en ese momento. Despues retornamos el máximo de esos minimos / 100. (Es decir, el costo de nasta)
+        #Ejemplo: ((('Sunchales',1.5,()), ('Sunchales',2,()), ('Rafaela',2,())), ('p1','p2','p3', 'p4') 
+
+        if paquetes_estado:
+            for paquete_estado in paquetes_estado:
+                for paquete_global in PAQUETES:
+                    if paquete_estado == paquete_global[0]:
+                        x = 0
+                        for ciudad in CONEXIONES[paquete_global[1]]:
+                            if x == 0:
+                                menor = ciudad[1]
+                                x = 1
+                            else:
+                                if ciudad[1]<menor:
+                                    menor = ciudad[1]
+                        lista.append(menor)
+            return round((max(lista) / 100),2)
+        return 0
 
 def planear_camiones(metodo, camiones, paquetes):
     lista = []
